@@ -1,0 +1,15 @@
+# PDF Processing
+pymupdf>=1.23.0          # Best library for PDF manipulation (fitz) - TOC, text, split
+pypdf>=3.0.0             # Fallback for PDF operations
+
+# UI
+streamlit>=1.28.0        # Web UI framework
+
+# AI Integration (optional)
+google-genai>=1.0.0  # New Gemini API SDK
+certifi>=2023.0.0  # SSL certificates
+
+# Utilities
+python-dotenv>=1.0.0     # Environment variables
+
+pip-system-certs
