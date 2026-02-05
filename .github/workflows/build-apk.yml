@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
+    name: Build APK for Android
     runs-on: ubuntu-latest
     
     steps:
@@ -17,78 +18,22 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Build APK with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
-          python-version: '3.11'
+          command: buildozer android debug
+          workdir: android_app
+          buildozer_version: stable
       
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git \
-            ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            zlib1g-dev libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            autoconf automake libtool pkg-config
-      
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          pip install buildozer cython kivy pymupdf setuptools wheel
-      
-      - name: Build APK with buildozer
-        working-directory: ./android_app
-        run: |
-          echo "🔨 Starting APK build with buildozer..."
-          buildozer -v android debug 2>&1 | tee build.log
-          BUILD_STATUS=${PIPESTATUS[0]}
-          
-          if [ $BUILD_STATUS -eq 0 ]; then
-            echo "✅ Build completed"
-          else
-            echo "⚠️ Build finished with status: $BUILD_STATUS"
-          fi
-          
-          exit $BUILD_STATUS
-      
-      - name: Find and verify APK
-        if: always()
-        run: |
-          echo "🔍 Searching for APK files..."
-          find android_app -name "*.apk" -type f 2>/dev/null | head -10
-          
-          # Check buildozer output location
-          if [ -f "android_app/bin/pdfsplitter-1.0.0-debug.apk" ]; then
-            echo "✅ APK found at: android_app/bin/pdfsplitter-1.0.0-debug.apk"
-            ls -lh android_app/bin/pdfsplitter-1.0.0-debug.apk
-          else
-            # Try to find any APK
-            APK_FILE=$(find android_app -name "*.apk" -type f 2>/dev/null | head -1)
-            if [ -n "$APK_FILE" ]; then
-              echo "✅ APK found at: $APK_FILE"
-              ls -lh "$APK_FILE"
-            else
-              echo "⚠️ No APK file found yet"
-            fi
-          fi
-      
-      - name: Upload APK as artifact
-        if: always()
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdfsplitter-apk
-          path: android_app/bin/*.apk
+          path: ${{ steps.buildozer.outputs.filename }}
           retention-days: 90
-          if-no-files-found: warn
       
-      - name: Post build summary
+      - name: Get APK info
         if: always()
         run: |
           echo "## 📱 APK Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -96,8 +41,8 @@ jobs:
           echo "| Item | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| Build ID | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK File | ${{ steps.buildozer.outputs.filename }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Download APK from Artifacts tab** (90-day retention)"
+          echo "✅ APK built successfully and uploaded to Artifacts"
