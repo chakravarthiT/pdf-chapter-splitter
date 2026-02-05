@@ -11,6 +11,8 @@ jobs:
   build-android:
     name: Build APK for Android
     runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:latest
     
     steps:
       - name: Checkout code
@@ -19,21 +21,44 @@ jobs:
           fetch-depth: 0
       
       - name: Build APK with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          workdir: android_app
-          buildozer_version: stable
+        working-directory: ./android_app
+        run: |
+          echo "🔨 Building APK with Buildozer..."
+          buildozer android debug 2>&1 | tee build.log
+          
+          # Check if build succeeded
+          if [ -f "bin/*.apk" ]; then
+            echo "✅ APK build successful"
+            ls -lh bin/*.apk
+          else
+            echo "❌ APK build failed"
+            echo "Build log:"
+            cat build.log
+            exit 1
+          fi
+      
+      - name: Find APK file
+        id: apk
+        working-directory: ./android_app
+        run: |
+          APK_FILE=$(find bin -name "*.apk" -type f | head -1)
+          if [ -n "$APK_FILE" ]; then
+            echo "apk_file=$APK_FILE" >> $GITHUB_OUTPUT
+            echo "✅ Found APK: $APK_FILE"
+            ls -lh "$APK_FILE"
+          else
+            echo "❌ No APK found"
+            exit 1
+          fi
       
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdfsplitter-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: android_app/bin/*.apk
           retention-days: 90
       
-      - name: Get APK info
+      - name: Build Summary
         if: always()
         run: |
           echo "## 📱 APK Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -41,8 +66,8 @@ jobs:
           echo "| Item | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| Build ID | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| APK File | ${{ steps.buildozer.outputs.filename }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ APK built successfully and uploaded to Artifacts"
+          echo "**Download APK from Artifacts tab** (90-day retention)"
