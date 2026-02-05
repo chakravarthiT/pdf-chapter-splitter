@@ -63,7 +63,6 @@ jobs:
           # Download NDK 25c directly
           wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
           unzip -q android-ndk-r25c-linux.zip
-          mv android-ndk-r25c android-ndk-r25c
           
           echo "✅ Android NDK pre-installed successfully"
           ls -la ~/.buildozer/android/platform/
