@@ -61,7 +61,7 @@ jobs:
           fi
       
       - name: Upload APK as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: apk-build
           path: android_app/bin/pdfsplitter-1.0.0-debug.apk
