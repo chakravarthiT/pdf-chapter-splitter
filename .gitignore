@@ -35,3 +35,23 @@ Thumbs.db
 
 # Logs
 *.log
+buildozer.log
+buildozer_full.log
+
+# Buildozer and Android build
+.buildozer/
+android_app/.gradle/
+android_app/.m2/
+android_app/.idea/
+android_app/*.iml
+
+# Build artifacts (but KEEP APK files for versioning)
+android_app/bin/*
+!android_app/bin/*.apk
+android_app/dist/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*~

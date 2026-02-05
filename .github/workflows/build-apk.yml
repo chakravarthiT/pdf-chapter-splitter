@@ -1,0 +1,128 @@
+name: Build APK and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git \
+            ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+            zlib1g-dev libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            autoconf automake libtool pkg-config
+      
+      - name: Install Python dependencies
+        working-directory: ./android_app
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython kivy pymupdf setuptools wheel
+      
+      - name: Build APK
+        working-directory: ./android_app
+        run: |
+          buildozer android debug
+      
+      - name: Verify APK
+        working-directory: ./android_app
+        run: |
+          if [ -f "bin/pdfsplitter-1.0.0-debug.apk" ]; then
+            echo "✅ APK build successful"
+            ls -lh bin/pdfsplitter-1.0.0-debug.apk
+          else
+            echo "❌ APK build failed"
+            exit 1
+          fi
+      
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: apk-build
+          path: android_app/bin/pdfsplitter-1.0.0-debug.apk
+          retention-days: 90
+      
+      - name: Commit APK back to repository
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add android_app/bin/pdfsplitter-1.0.0-debug.apk
+          git commit -m "Automated: Update APK build [skip ci]" || echo "No changes to commit"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: apk-build-${{ github.run_number }}
+          release_name: APK Build ${{ github.run_number }}
+          body: |
+            Automated APK build from commit ${{ github.sha }}
+            
+            **Build Details:**
+            - Build Number: ${{ github.run_number }}
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref }}
+            - Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+            
+            **Download APK:** See Artifacts or attached file
+          draft: false
+          prerelease: false
+      
+      - name: Upload APK to Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: android_app/bin/pdfsplitter-1.0.0-debug.apk
+          asset_name: pdfsplitter-1.0.0-debug.apk
+          asset_content_type: application/vnd.android.package-archive
+      
+      - name: Post build summary
+        run: |
+          echo "## ✅ APK Build Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build ID | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK File | pdfsplitter-1.0.0-debug.apk |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $(ls -lh android_app/bin/pdfsplitter-1.0.0-debug.apk \| awk '{print $5}') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Download from:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts tab (90-day retention)" >> $GITHUB_STEP_SUMMARY
+          echo "- Latest Release (if on main branch)" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository: android_app/bin/" >> $GITHUB_STEP_SUMMARY
