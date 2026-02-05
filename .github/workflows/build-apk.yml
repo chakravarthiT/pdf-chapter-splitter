@@ -54,17 +54,28 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython kivy pymupdf setuptools wheel
       
-      - name: Configure buildozer NDK version
-        working-directory: ./android_app
+      - name: Pre-install Android NDK
         run: |
-          # Update to use a more recent NDK version (25)
-          sed -i 's/android.ndk = 21.3.6528147/android.ndk = 25.1.8937393/' buildozer.spec
+          echo "Pre-installing Android NDK to avoid download issues"
+          mkdir -p ~/.buildozer/android/platform
+          cd ~/.buildozer/android/platform
+          
+          # Download NDK 25c directly
+          wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+          unzip -q android-ndk-r25c-linux.zip
+          mv android-ndk-r25c android-ndk-r25c
+          
+          echo "✅ Android NDK pre-installed successfully"
+          ls -la ~/.buildozer/android/platform/
       
       - name: Build APK
         working-directory: ./android_app
         run: |
-          buildozer android debug 2>&1 || {
-            echo "Build failed, checking logs..."
+          # Build with verbose output and retry on failure
+          buildozer -v android debug 2>&1 | tee build.log || {
+            echo "❌ Build failed, checking logs..."
+            echo "Last 50 lines of build log:"
+            tail -50 build.log
             exit 1
           }
       
