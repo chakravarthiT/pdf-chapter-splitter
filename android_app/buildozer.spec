@@ -32,7 +32,7 @@ android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 # Android API level
 android.api = 29
 android.minapi = 21
-android.ndk = 21.3.6528147
+android.ndk = 25.1.8937393
 
 # Architecture
 android.archs = arm64-v8a
