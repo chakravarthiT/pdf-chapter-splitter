@@ -17,7 +17,7 @@ def detect_chapters_with_gemini(
     text_content: str,
     total_pages: int,
     api_key: str,
-    model_name: str = "gemini-1.5-flash"
+    model_name: str = None
 ) -> list[dict]:
     """
     Use Gemini AI to detect chapter boundaries from PDF text.
@@ -38,6 +38,10 @@ def detect_chapters_with_gemini(
         
         # Create client with the new API
         client = genai.Client(api_key=api_key)
+        
+        # Use fallback model strategy if not specified
+        if not model_name:
+            model_name = "gemini-pro"  # More widely available
         
         prompt = f"""Analyze this PDF text and identify chapter or section boundaries.
 The PDF has {total_pages} total pages.
@@ -64,10 +68,28 @@ RULES:
 - Return at least 2 chapters/sections if the document is more than 10 pages
 """
         
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+        except Exception as model_error:
+            # If primary model fails, try fallback
+            error_msg = str(model_error).lower()
+            if "not found" in error_msg or "not supported" in error_msg:
+                if model_name != "gemini-pro":
+                    try:
+                        response = client.models.generate_content(
+                            model="gemini-pro",
+                            contents=prompt
+                        )
+                    except Exception:
+                        raise Exception(f"No supported Gemini models available. Error: {str(model_error)}")
+                else:
+                    raise Exception(f"Gemini model not available: {str(model_error)}")
+            else:
+                raise
+        
         response_text = response.text.strip()
         
         # Try to extract JSON from response
@@ -182,16 +204,25 @@ def validate_api_key(api_key: str) -> tuple[bool, str]:
         
         client = genai.Client(api_key=api_key)
         
-        # Simple test request
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents="Say 'OK' if you can read this."
-        )
+        # Try multiple models to find one that works
+        models_to_try = ["gemini-pro", "gemini-2.0-flash", "gemini-1.5-pro"]
         
-        if response and response.text:
-            return True, "API key is valid"
-        else:
-            return False, "API key validation failed - no response"
+        for model in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents="Say 'OK' if you can read this."
+                )
+                if response and response.text:
+                    return True, f"API key is valid (using {model})"
+            except Exception as e:
+                error_str = str(e).lower()
+                if "not found" in error_str or "not supported" in error_str:
+                    continue  # Try next model
+                else:
+                    raise  # Re-raise other errors
+        
+        return False, "API key validation failed - no supported models available"
             
     except Exception as e:
         error_msg = str(e)
