@@ -1,0 +1,25 @@
+[project]
+name = "split-pdf-with-chapters"
+version = "1.0.0"
+description = "PDF splitting tool with intelligent chapter detection"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+requires-python = ">=3.9"
+dependencies = [
+    "pymupdf>=1.23.0",
+    "pypdf>=3.0.0",
+    "streamlit>=1.28.0",
+    "google-genai>=1.0.0",
+    "certifi>=2023.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Repository = "https://github.com/yourusername/split-pdf-with-chapters"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
