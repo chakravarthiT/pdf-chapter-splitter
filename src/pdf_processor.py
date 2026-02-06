@@ -289,6 +289,16 @@ class PDFProcessor:
             return self.doc[page_num - 1].get_text()
         return ""
     
+    def extract_full_text(self) -> str:
+        """Extract all text from the PDF document"""
+        full_text = []
+        for page_num in range(len(self.doc)):
+            page = self.doc[page_num]
+            text = page.get_text()
+            if text.strip():
+                full_text.append(text)
+        return "\n\n".join(full_text)
+    
     def get_text_for_ai(self, max_pages: int = 20) -> str:
         """
         Extract text suitable for AI analysis.

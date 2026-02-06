@@ -4,12 +4,15 @@ Podcast Creator - Simple Version
 Extracts text from PDF, creates a summary, and converts to audio using Gemini Flash TTS
 """
 
+import json
 import os
 import sys
-import json
 from pathlib import Path
 from typing import Optional
+
 import google.generativeai as genai
+from gtts import gTTS
+
 from src.pdf_processor import PDFProcessor
 
 
@@ -19,8 +22,8 @@ class PodcastCreatorSimple:
     def __init__(self, api_key: str):
         """Initialize with API key"""
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
-        self.tts_model = "gemini-2.0-flash"  # Flash model for TTS
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        self.tts_model = "gemini-2.5-flash"  # Flash model for TTS
     
     def extract_pdf_text(self, pdf_path: str) -> str:
         """Extract text from PDF file"""
@@ -64,33 +67,27 @@ Create an engaging podcast script:"""
         return summary
     
     def text_to_speech(self, text: str, output_path: str) -> bool:
-        """Convert text to speech using Gemini's audio generation"""
-        print(f"🎙️ Converting text to speech...")
+        """Convert text to speech using gTTS (Google Text-to-Speech)"""
+        print(f"🎙️ Converting text to speech with gTTS...")
         
         try:
-            # Using Gemini to generate audio
-            # Note: Gemini 2.0 Flash supports audio output
-            prompt = f"""Convert this podcast script to audio. Make it sound natural and engaging:
-
-{text}"""
+            # Use gTTS for text-to-speech conversion
+            tts = gTTS(text=text, lang='en', slow=False)
             
-            response = self.model.generate_content(
-                prompt,
-                stream=False
-            )
-            
-            # Save the audio response
+            # Create output directory if needed
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # For actual TTS, you would need to use Google Cloud Text-to-Speech API
-            # or Gemini's audio capabilities when available
-            print(f"✅ Audio would be saved to: {output_path}")
-            print("📌 Note: Full TTS requires Google Cloud Text-to-Speech API integration")
+            # Save the audio file
+            tts.save(str(output_path))
+            
+            print(f"✅ Audio saved: {output_path}")
+            print(f"📁 File size: {output_path.stat().st_size / 1024:.2f} KB")
             
             return True
         except Exception as e:
             print(f"❌ Error during TTS: {e}")
+            print("📌 Make sure you have internet connection for gTTS")
             return False
     
     def create_podcast(self, pdf_path: str, output_dir: str = "podcasts") -> str:
@@ -101,7 +98,7 @@ Create an engaging podcast script:"""
         
         try:
             # Step 1: Extract text from PDF
-            text = self.extract_pdf_text(pdf_path)
+            text = self.extract_pdf_text(pdf_path)[:1000]  # Limit to first 10k chars for processing
             
             # Step 2: Create summary
             summary = self.create_summary(text)
