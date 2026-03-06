@@ -268,6 +268,54 @@ class PDFProcessor:
         
         return result
     
+    def split_by_chapter_groups(self, chapter_groups: list[list[Chapter]], add_numbering: bool = True) -> list[tuple[str, bytes]]:
+        """
+        Split PDF by groups of chapters, merging chapters within each group into a single PDF.
+
+        Args:
+            chapter_groups: List of groups; each group is a list of Chapter objects
+                            whose pages are concatenated in order.
+            add_numbering: Whether to prefix output filenames with a zero-padded index.
+
+        Returns:
+            List of (filename, pdf_bytes) tuples – one entry per group.
+        """
+        result = []
+        num_digits = len(str(len(chapter_groups)))
+
+        for idx, group in enumerate(chapter_groups, 1):
+            new_doc = fitz.open()
+
+            for ch in group:
+                new_doc.insert_pdf(
+                    self.doc,
+                    from_page=ch.start_page - 1,
+                    to_page=ch.end_page - 1
+                )
+
+            pdf_bytes = new_doc.write()
+            new_doc.close()
+
+            # Build a title that reflects the group's content
+            if len(group) == 1:
+                title = group[0].title.strip()
+            else:
+                first = group[0].title.strip()
+                last = group[-1].title.strip()
+                title = f"{first} - {last}"
+
+            if add_numbering:
+                prefix = f"{idx:0{num_digits}d}_"
+                title = prefix + title
+
+            safe_name = self._sanitize_filename(title)
+            if not safe_name.endswith('.pdf'):
+                safe_name += '.pdf'
+
+            result.append((safe_name, pdf_bytes))
+
+        return result
+
     def split_by_chapters(self, chapters: list[Chapter], add_numbering: bool = True) -> list[tuple[str, bytes]]:
         """Split PDF by chapter objects with optional numbering prefix"""
         ranges = []

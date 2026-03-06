@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 from src.pdf_processor import PDFProcessor, Chapter, parse_range_string
 from src.gemini_detector import detect_chapters_with_gemini, validate_api_key
-from src.utils import create_zip, format_file_size, generate_output_filename, validate_ranges, suggest_equal_splits
+from src.utils import create_zip, format_file_size, generate_output_filename, validate_ranges, suggest_equal_splits, aggregate_chapters_into_groups
 
 
 # Page configuration
@@ -76,6 +76,8 @@ def init_session_state():
         st.session_state.split_files = None
     if 'gemini_api_key' not in st.session_state:
         st.session_state.gemini_api_key = ""
+    if 'aggregated_files' not in st.session_state:
+        st.session_state.aggregated_files = None
 
 
 def render_header():
@@ -161,6 +163,7 @@ def render_upload_section():
                     st.session_state.pdf_info = info
                     st.session_state.chapters = info.chapters.copy()
                     st.session_state.split_files = None
+                    st.session_state.aggregated_files = None
                     
                 except Exception as e:
                     st.error(f"Error processing PDF: {str(e)}")
@@ -173,6 +176,7 @@ def render_upload_section():
         st.session_state.pdf_info = None
         st.session_state.chapters = []
         st.session_state.split_files = None
+        st.session_state.aggregated_files = None
         return False
 
 
@@ -615,6 +619,90 @@ def render_split_section():
                     file_name=filename,
                     mime="application/pdf",
                     key=f"download_{filename}"
+                )
+
+    st.markdown("---")
+    render_aggregate_section(chapters, info)
+
+
+def render_aggregate_section(chapters, info):
+    """Render the 'aggregate chapters into N files' section"""
+    st.header("📦 Aggregate Chapters into N Files")
+    st.write(
+        "Combine your chapters into a smaller number of files. "
+        "Chapters are kept in order and distributed by page count so each file is roughly the same size."
+    )
+
+    if not chapters:
+        st.warning("⚠️ Define chapter ranges above before aggregating.")
+        return
+
+    num_chapters = len(chapters)
+
+    if num_chapters == 1:
+        st.info("Only one chapter defined — nothing to aggregate.")
+        return
+
+    col_slider, col_info = st.columns([3, 1])
+    with col_slider:
+        n_files = st.slider(
+            "Number of output files",
+            min_value=1,
+            max_value=num_chapters,
+            value=min(num_chapters, max(1, num_chapters // 2)),
+            help="Each file will contain one or more consecutive chapters",
+            key="aggregate_n_slider"
+        )
+    with col_info:
+        st.metric("Chapters per file (avg)", f"{num_chapters / n_files:.1f}")
+
+    # Live preview of how chapters will be grouped
+    groups = aggregate_chapters_into_groups(chapters, n_files)
+
+    st.write(f"**Preview — {len(groups)} file(s):**")
+    for i, group in enumerate(groups, 1):
+        group_pages = sum(ch.end_page - ch.start_page + 1 for ch in group)
+        label = f"File {i}: {len(group)} chapter(s), {group_pages} pages"
+        with st.expander(label):
+            for ch in group:
+                st.write(f"• **{ch.title}** — pages {ch.start_page}–{ch.end_page}")
+
+    st.markdown("")
+
+    col_btn, col_dl = st.columns(2)
+
+    with col_btn:
+        if st.button("📦 Create Aggregated Files", key="aggregate_btn", type="primary"):
+            with st.spinner("Merging chapters…"):
+                try:
+                    processor = st.session_state.pdf_processor
+                    agg_files = processor.split_by_chapter_groups(groups)
+                    st.session_state.aggregated_files = agg_files
+                    st.success(f"✅ Created {len(agg_files)} aggregated file(s)!")
+                except Exception as e:
+                    st.error(f"Error during aggregation: {str(e)}")
+
+    if st.session_state.aggregated_files:
+        with col_dl:
+            zip_name = generate_output_filename(info.filename).replace("_split_", "_aggregated_")
+            zip_bytes = create_zip(st.session_state.aggregated_files, zip_name)
+            st.download_button(
+                label=f"⬇️ Download ZIP ({len(st.session_state.aggregated_files)} files)",
+                data=zip_bytes,
+                file_name=zip_name,
+                mime="application/zip",
+                type="primary",
+                key="download_aggregated_zip"
+            )
+
+        with st.expander("Download individual aggregated files"):
+            for filename, file_bytes in st.session_state.aggregated_files:
+                st.download_button(
+                    label=f"📄 {filename}",
+                    data=file_bytes,
+                    file_name=filename,
+                    mime="application/pdf",
+                    key=f"dl_agg_{filename}"
                 )
 
 

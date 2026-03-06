@@ -161,3 +161,56 @@ def fill_missing_pages(chapters: list, total_pages: int) -> list:
         filled_ranges.append((current_page, total_pages, gap_title))
     
     return filled_ranges
+
+
+def aggregate_chapters_into_groups(chapters: list, n: int) -> list[list]:
+    """
+    Aggregate chapters into n groups, distributing by page count for balance.
+
+    Chapters stay in their original order. The algorithm greedily accumulates
+    chapters until each group reaches its target page share, ensuring every
+    group contains at least one chapter.
+
+    Args:
+        chapters: List of Chapter objects
+        n: Desired number of output groups
+
+    Returns:
+        List of n groups, each group is a list of Chapter objects.
+        If n >= len(chapters) each chapter gets its own group.
+    """
+    if not chapters:
+        return []
+
+    n = max(1, min(n, len(chapters)))
+
+    if n == len(chapters):
+        return [[ch] for ch in chapters]
+
+    page_counts = [max(1, ch.end_page - ch.start_page + 1) for ch in chapters]
+    total_pages = sum(page_counts)
+    target_per_group = total_pages / n
+
+    groups: list[list] = []
+    current_group: list = []
+    current_pages = 0
+
+    for i, (ch, pages) in enumerate(zip(chapters, page_counts)):
+        current_group.append(ch)
+        current_pages += pages
+
+        groups_still_needed = n - len(groups) - 1
+        chapters_left = len(chapters) - i - 1
+
+        # Close the current group when we've hit the target AND there are
+        # enough remaining chapters to fill the rest of the groups.
+        if groups_still_needed > 0 and chapters_left >= groups_still_needed:
+            if current_pages >= target_per_group:
+                groups.append(current_group)
+                current_group = []
+                current_pages = 0
+
+    if current_group:
+        groups.append(current_group)
+
+    return groups
